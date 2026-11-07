@@ -1,55 +1,53 @@
 # tls-check
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/Trysac/u162-tls-check.svg)](https://pkg.go.dev/github.com/Trysac/u162-tls-check)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/Trysac/u162-tls-check/actions/workflows/ci.yml/badge.svg)](https://github.com/Trysac/u162-tls-check/actions/workflows/ci.yml)
+Inspect TLS certificate chains and live handshakes: expiry, hostname, weak keys and signatures, validity length, trust, and protocol version, with stable finding codes.
 
-Inspect TLS certificate chains and handshakes: expiry, hostname, weak keys and signatures, validity length, trust and protocol version, with stable finding codes
+## Overview
 
-## Problem
+Expired or misissued certificates cause critical outages. Ad hoc scripts often check only expiry, missing hostname mismatches, weak keys, SHA-1 signatures, or invalid chains. Full scanners (like `testssl.sh`) are large, slow, and do far more than a continuous monitoring check needs. `tls-check` is a pure Go package (standard library only) designed for CI pipelines, health probes, and continuous certificate monitoring that provides a sorted, actionable list of findings.
 
-Describe in two or three sentences the concrete problem this utility solves, who hits it, and what
-they do today without it. Replace this paragraph when the first real feature lands.
+### Installation
 
-## Install
-
-```sh
+```bash
 go get github.com/Trysac/u162-tls-check
 ```
 
-Requires Go 1.23 or newer. No dependencies outside the standard library.
-
-## Usage
+### Usage
 
 ```go
 package main
 
 import (
-	"errors"
+	"context"
 	"fmt"
-
+	"time"
 	"github.com/Trysac/u162-tls-check"
 )
 
 func main() {
-	// Normalize trims surrounding whitespace and lower-cases the text.
-	out, _ := tlscheck.Normalize("  Hello World ")
-	fmt.Println(out) // -> "hello world"
-
-	// Blank input is rejected explicitly instead of returning an empty string.
-	if _, err := tlscheck.Normalize("   "); errors.Is(err, tlscheck.ErrBlank) {
-		fmt.Println("rejected:", err)
+	rep, err := tlscheck.Probe(context.Background(), "example.com:443", "example.com", time.Now(), tlscheck.Options{})
+	if err == nil {
+		for _, f := range rep.Findings {
+			fmt.Printf("%s [%s]: %s\n", f.Code, f.Severity, f.Message)
+		}
 	}
 }
 ```
 
-## Documentation
+## Public API
 
-- [Architecture](docs/ARCHITECTURE.md) and [decisions](docs/decisions/)
-- [Testing](docs/TESTING.md) and [security](docs/SECURITY.md)
-- [Project record](docs/PROJECT.md) and [stack](docs/STACK.md)
-- [Changelog](CHANGELOG.md) and [contributing guide](CONTRIBUTING.md)
+- `type Finding struct { Code string; Severity string; Message string }`
+- `type Options struct { WarnDays int; MaxValidityDays int; Roots *x509.CertPool; Dial func(ctx context.Context, network, addr string) (net.Conn, error) }`
+- `func InspectChain(chain []*x509.Certificate, host string, now time.Time, opts Options) ([]Finding, error)`
+- `func Probe(ctx context.Context, addr, serverName string, now time.Time, opts Options) (Report, error)`
+- `type Report struct { Version string; CipherSuite string; Findings []Finding }`
 
-## License
+### Errors
+- `ErrEmptyChain`: Returned if the provided certificate chain is nil or empty.
+- `ErrProbe`: Wrapped with errors.Is, returned when dial or handshake operations fail.
 
-[MIT](LICENSE) (c) 2026 Miguel Gomez
+## Why not testssl.sh?
+
+`testssl.sh` is an external dependency that is slow and designed for one-off manual audits. `tls-check` is a embeddable Go library that enables automated, programmatic inspection with stable, machine-readable finding codes in CI/CD pipelines.
+
+See [docs/SECURITY.md](docs/SECURITY.md) for security considerations.

@@ -2,29 +2,11 @@
 
 ## Purpose
 
-`github.com/Trysac/u162-tls-check` is a small, dependency-free Go library: Inspect TLS certificate chains and handshakes: expiry, hostname, weak keys and signatures, validity length, trust and protocol version, with stable finding codes
+`tlscheck` provides lightweight, fast, and dependency-free TLS inspection for certificate chains and live network endpoints.
 
-## Shape
+## Design
 
-```text
-caller code --> package tlscheck (repository root)
-                    |
-                    +-- pure functions, no I/O, no global mutable state
-                    +-- internal/ (optional private helpers)
-```
-
-- **Public API**: every exported identifier of the root package. Unexported identifiers and
-  `internal/` packages may change without a major version.
-- **Errors**: invalid input returns an error; exported sentinel errors (such as `ErrBlank`) let
-  callers branch with `errors.Is`. The library never panics on input, prints or exits.
-- **Side effects**: none. If a feature needs I/O, accept an interface (`io.Reader` or a small
-  custom one) instead of opening resources, and record the choice in an ADR.
-
-## Quality contract
-
-`scripts/check` is the single definition of the gates; `fabrica.json` tells the factory and CI
-how to run it. See [TESTING.md](TESTING.md).
-
-## Decisions
-
-Architecture decisions are recorded in [decisions/](decisions/) as numbered ADRs.
+- **InspectChain**: A pure inspection function taking `[]*x509.Certificate`, target hostname, reference timestamp, and options. Performs validation checks TLS001-TLS008 without performing I/O.
+- **Probe**: Establishes a TLS connection using `net.Dialer` (or caller-supplied `Dial` option) with `InsecureSkipVerify: true` and `MinVersion: tls.VersionTLS10` so invalid, expired, or self-signed peer certificates can still be captured and thoroughly analyzed. It then performs chain inspection and validates TLS version (TLS009) and path verification (TLS010).
+- **Deterministic Sorting**: Findings are always sorted deterministically by finding code.
+- **Zero External Dependencies**: Built entirely on standard library packages `crypto/tls`, `crypto/x509`, `net`, and `time`.

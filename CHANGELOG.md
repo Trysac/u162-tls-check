@@ -9,4 +9,5 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Implement TLS certificate chain inspection and live probe with stable finding codes TLS001-TLS010.
 - Initial project structure from the factory utility template.
